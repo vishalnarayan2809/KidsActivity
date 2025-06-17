@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { User, Settings, Bell, Shield, CreditCard, CircleHelp as HelpCircle, LogOut, Edit, Phone, Mail, MapPin, Calendar } from 'lucide-react-native';
+import { User, Settings, Bell, Shield, CreditCard, CircleHelp as HelpCircle, LogOut, CreditCard as Edit, Phone, Mail, MapPin, Calendar } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { router } from 'expo-router';
