@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { User, Settings, Bell, Shield, CreditCard, CircleHelp as HelpCircle, LogOut, CreditCard as Edit, Phone, Mail, MapPin, Calendar } from 'lucide-react-native';
+import { User, Settings, Bell, Shield, CreditCard, CircleHelp as HelpCircle, LogOut, Edit, Phone, Mail, MapPin, Calendar } from 'lucide-react-native';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { router } from 'expo-router';
+import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '@/utils/colors';
+import NeumorphicCard from '@/components/NeumorphicCard';
+import NeumorphicButton from '@/components/NeumorphicButton';
 
 interface Child {
   id: string;
@@ -21,13 +27,15 @@ interface Parent {
 }
 
 export default function ProfileScreen() {
+  const { user, logout } = useAuth();
+  const { currentSubscription, hasActiveSubscription, cancelSubscription } = useSubscription();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
 
   const [parentInfo] = useState<Parent>({
-    name: 'Alex Johnson',
-    email: 'alex.johnson@email.com',
-    phone: '+91 98765 43210',
+    name: user?.name || 'Alex Johnson',
+    email: user?.email || 'alex.johnson@email.com',
+    phone: user?.phone || '+91 98765 43210',
     address: '123 Green Valley, Mumbai 400001',
     joinDate: 'January 2024'
   });
@@ -64,7 +72,45 @@ export default function ProfileScreen() {
   };
 
   const handleManageSubscription = () => {
-    Alert.alert('Subscription', 'Manage subscription and billing');
+    if (hasActiveSubscription) {
+      Alert.alert(
+        'Manage Subscription',
+        'What would you like to do?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Update Plan', onPress: () => router.push('/subscription') },
+          { 
+            text: 'Cancel Subscription', 
+            style: 'destructive',
+            onPress: () => handleCancelSubscription()
+          }
+        ]
+      );
+    } else {
+      router.push('/subscription');
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    Alert.alert(
+      'Cancel Subscription',
+      'Are you sure you want to cancel your subscription? This action cannot be undone.',
+      [
+        { text: 'No', style: 'cancel' },
+        { 
+          text: 'Yes, Cancel', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelSubscription();
+              Alert.alert('Success', 'Your subscription has been cancelled.');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to cancel subscription');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleEmergencyContacts = () => {
@@ -85,7 +131,18 @@ export default function ProfileScreen() {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive' }
+        { 
+          text: 'Logout', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace('/auth');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to logout');
+            }
+          }
+        }
       ]
     );
   };
@@ -95,13 +152,13 @@ export default function ProfileScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profile</Text>
         <TouchableOpacity style={styles.editBtn} onPress={handleEditProfile}>
-          <Edit size={20} color="#64748B" strokeWidth={2} />
+          <Edit size={20} color={COLORS.textSecondary} strokeWidth={2} />
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Parent Profile */}
-        <View style={styles.section}>
+        <NeumorphicCard style={styles.section}>
           <View style={styles.profileHeader}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{parentInfo.name.split(' ').map(n => n[0]).join('')}</Text>
@@ -114,31 +171,63 @@ export default function ProfileScreen() {
 
           <View style={styles.contactInfo}>
             <View style={styles.contactItem}>
-              <Mail size={16} color="#64748B" strokeWidth={2} />
+              <Mail size={16} color={COLORS.textSecondary} strokeWidth={2} />
               <Text style={styles.contactText}>{parentInfo.email}</Text>
             </View>
             <View style={styles.contactItem}>
-              <Phone size={16} color="#64748B" strokeWidth={2} />
+              <Phone size={16} color={COLORS.textSecondary} strokeWidth={2} />
               <Text style={styles.contactText}>{parentInfo.phone}</Text>
             </View>
             <View style={styles.contactItem}>
-              <MapPin size={16} color="#64748B" strokeWidth={2} />
+              <MapPin size={16} color={COLORS.textSecondary} strokeWidth={2} />
               <Text style={styles.contactText}>{parentInfo.address}</Text>
             </View>
           </View>
-        </View>
+        </NeumorphicCard>
+
+        {/* Subscription Status */}
+        <NeumorphicCard style={styles.section}>
+          <View style={styles.subscriptionHeader}>
+            <Text style={styles.sectionTitle}>Subscription Status</Text>
+            <View style={[
+              styles.statusBadge,
+              { backgroundColor: hasActiveSubscription ? COLORS.success : COLORS.error }
+            ]}>
+              <Text style={styles.statusText}>
+                {hasActiveSubscription ? 'Active' : 'Inactive'}
+              </Text>
+            </View>
+          </View>
+          {hasActiveSubscription && currentSubscription ? (
+            <View style={styles.subscriptionDetails}>
+              <Text style={styles.subscriptionPlan}>
+                Current Plan: {currentSubscription.planId}
+              </Text>
+              <Text style={styles.subscriptionExpiry}>
+                Expires: {currentSubscription.endDate.toLocaleDateString()}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.noSubscriptionText}>
+              No active subscription. Choose a plan to start booking sessions.
+            </Text>
+          )}
+        </NeumorphicCard>
 
         {/* Children Profiles */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Children</Text>
-            <TouchableOpacity style={styles.addChildBtn} onPress={handleAddChild}>
-              <Text style={styles.addChildText}>Add Child</Text>
-            </TouchableOpacity>
+            <NeumorphicButton
+              title="Add Child"
+              onPress={handleAddChild}
+              size="small"
+              variant="secondary"
+            />
           </View>
 
           {children.map((child) => (
-            <View key={child.id} style={styles.childCard}>
+            <NeumorphicCard key={child.id} style={styles.childCard}>
               <View style={styles.childHeader}>
                 <View style={styles.childAvatar}>
                   <Text style={styles.childInitial}>{child.name[0]}</Text>
@@ -151,7 +240,7 @@ export default function ProfileScreen() {
                   style={styles.editChildBtn}
                   onPress={() => handleEditChild(child.id)}
                 >
-                  <Edit size={16} color="#64748B" strokeWidth={2} />
+                  <Edit size={16} color={COLORS.textSecondary} strokeWidth={2} />
                 </TouchableOpacity>
               </View>
 
@@ -167,7 +256,7 @@ export default function ProfileScreen() {
                   </View>
                 )}
               </View>
-            </View>
+            </NeumorphicCard>
           ))}
         </View>
 
@@ -175,44 +264,48 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
 
-          <View style={styles.settingItem}>
+          <NeumorphicCard style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Bell size={20} color="#64748B" strokeWidth={2} />
+              <Bell size={20} color={COLORS.textSecondary} strokeWidth={2} />
               <Text style={styles.settingText}>Push Notifications</Text>
             </View>
             <Switch
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#F1F5F9', true: '#FF6B35' }}
-              thumbColor={notificationsEnabled ? '#FFFFFF' : '#FFFFFF'}
+              trackColor={{ false: COLORS.border, true: COLORS.primary }}
+              thumbColor={COLORS.white}
             />
-          </View>
+          </NeumorphicCard>
 
-          <View style={styles.settingItem}>
+          <NeumorphicCard style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <MapPin size={20} color="#64748B" strokeWidth={2} />
+              <MapPin size={20} color={COLORS.textSecondary} strokeWidth={2} />
               <Text style={styles.settingText}>Location Services</Text>
             </View>
             <Switch
               value={locationEnabled}
               onValueChange={setLocationEnabled}
-              trackColor={{ false: '#F1F5F9', true: '#FF6B35' }}
-              thumbColor={locationEnabled ? '#FFFFFF' : '#FFFFFF'}
+              trackColor={{ false: COLORS.border, true: COLORS.primary }}
+              thumbColor={COLORS.white}
             />
-          </View>
+          </NeumorphicCard>
 
-          <TouchableOpacity style={styles.settingItem} onPress={handleManageSubscription}>
-            <View style={styles.settingInfo}>
-              <CreditCard size={20} color="#64748B" strokeWidth={2} />
-              <Text style={styles.settingText}>Subscription & Billing</Text>
-            </View>
+          <TouchableOpacity onPress={handleManageSubscription}>
+            <NeumorphicCard style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <CreditCard size={20} color={COLORS.textSecondary} strokeWidth={2} />
+                <Text style={styles.settingText}>Subscription & Billing</Text>
+              </View>
+            </NeumorphicCard>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={handleEmergencyContacts}>
-            <View style={styles.settingInfo}>
-              <Shield size={20} color="#64748B" strokeWidth={2} />
-              <Text style={styles.settingText}>Emergency Contacts</Text>
-            </View>
+          <TouchableOpacity onPress={handleEmergencyContacts}>
+            <NeumorphicCard style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Shield size={20} color={COLORS.textSecondary} strokeWidth={2} />
+                <Text style={styles.settingText}>Emergency Contacts</Text>
+              </View>
+            </NeumorphicCard>
           </TouchableOpacity>
         </View>
 
@@ -220,26 +313,33 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Support</Text>
 
-          <TouchableOpacity style={styles.settingItem} onPress={handleSupport}>
-            <View style={styles.settingInfo}>
-              <HelpCircle size={20} color="#64748B" strokeWidth={2} />
-              <Text style={styles.settingText}>Help & Support</Text>
-            </View>
+          <TouchableOpacity onPress={handleSupport}>
+            <NeumorphicCard style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <HelpCircle size={20} color={COLORS.textSecondary} strokeWidth={2} />
+                <Text style={styles.settingText}>Help & Support</Text>
+              </View>
+            </NeumorphicCard>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={handlePrivacyPolicy}>
-            <View style={styles.settingInfo}>
-              <Settings size={20} color="#64748B" strokeWidth={2} />
-              <Text style={styles.settingText}>Privacy Policy & Terms</Text>
-            </View>
+          <TouchableOpacity onPress={handlePrivacyPolicy}>
+            <NeumorphicCard style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Settings size={20} color={COLORS.textSecondary} strokeWidth={2} />
+                <Text style={styles.settingText}>Privacy Policy & Terms</Text>
+              </View>
+            </NeumorphicCard>
           </TouchableOpacity>
         </View>
 
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <LogOut size={20} color="#EF4444" strokeWidth={2} />
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        <NeumorphicButton
+          title="Logout"
+          onPress={handleLogout}
+          variant="outline"
+          style={styles.logoutBtn}
+          icon={<LogOut size={20} color={COLORS.error} strokeWidth={2} />}
+        />
 
         {/* App Version */}
         <Text style={styles.versionText}>KidsOutdoor v1.0.0</Text>
@@ -251,28 +351,28 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.xl,
   },
   headerTitle: {
     fontSize: 24,
-    color: '#1E293B',
-    fontWeight: '700',
+    color: COLORS.textPrimary,
+    fontFamily: FONTS.headingBold,
   },
   editBtn: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.cardBackground,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -280,146 +380,149 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: SPACING.xl,
   },
   section: {
-    marginBottom: 30,
+    marginBottom: SPACING.xxxl,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: SPACING.lg,
   },
   sectionTitle: {
     fontSize: 20,
-    color: '#1E293B',
-    fontWeight: '700',
-  },
-  addChildBtn: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  addChildText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: COLORS.textPrimary,
+    fontFamily: FONTS.headingBold,
   },
   profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: SPACING.lg,
   },
   avatar: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FF6B35',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: SPACING.lg,
   },
   avatarText: {
     fontSize: 20,
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: COLORS.white,
+    fontFamily: FONTS.headingBold,
   },
   profileInfo: {
     flex: 1,
   },
   profileName: {
     fontSize: 20,
-    color: '#1E293B',
-    fontWeight: '700',
+    color: COLORS.textPrimary,
+    fontFamily: FONTS.headingBold,
   },
   profileMeta: {
     fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
+    color: COLORS.textSecondary,
+    fontFamily: FONTS.body,
+    marginTop: SPACING.xs,
   },
   contactInfo: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    gap: SPACING.md,
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
   },
   contactText: {
     fontSize: 14,
-    color: '#64748B',
-    marginLeft: 12,
+    color: COLORS.textSecondary,
+    fontFamily: FONTS.body,
+    marginLeft: SPACING.md,
+  },
+  subscriptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  statusBadge: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.xl,
+  },
+  statusText: {
+    fontSize: 12,
+    color: COLORS.white,
+    fontFamily: FONTS.button,
+  },
+  subscriptionDetails: {
+    gap: SPACING.xs,
+  },
+  subscriptionPlan: {
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    fontFamily: FONTS.bodyMedium,
+  },
+  subscriptionExpiry: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontFamily: FONTS.body,
+  },
+  noSubscriptionText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontFamily: FONTS.body,
+    fontStyle: 'italic',
   },
   childCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: SPACING.md,
   },
   childHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: SPACING.md,
   },
   childAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#3B82F6',
+    backgroundColor: COLORS.secondary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: SPACING.md,
   },
   childInitial: {
     fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: COLORS.white,
+    fontFamily: FONTS.subheadingBold,
   },
   childInfo: {
     flex: 1,
   },
   childName: {
     fontSize: 16,
-    color: '#1E293B',
-    fontWeight: '600',
+    color: COLORS.textPrimary,
+    fontFamily: FONTS.subheadingBold,
   },
   childAge: {
     fontSize: 14,
-    color: '#64748B',
-    marginTop: 2,
+    color: COLORS.textSecondary,
+    fontFamily: FONTS.body,
+    marginTop: SPACING.xs,
   },
   editChildBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   childDetails: {
-    gap: 8,
+    gap: SPACING.sm,
   },
   detailRow: {
     flexDirection: 'row',
@@ -427,32 +530,25 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#64748B',
-    fontWeight: '600',
+    color: COLORS.textSecondary,
+    fontFamily: FONTS.subheadingBold,
     width: 100,
   },
   detailValue: {
     fontSize: 14,
-    color: '#1E293B',
+    color: COLORS.textPrimary,
+    fontFamily: FONTS.body,
     flex: 1,
   },
   allergyText: {
-    color: '#DC2626',
-    fontWeight: '600',
+    color: COLORS.error,
+    fontFamily: FONTS.bodyMedium,
   },
   settingItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    marginBottom: SPACING.sm,
   },
   settingInfo: {
     flexDirection: 'row',
@@ -461,31 +557,19 @@ const styles = StyleSheet.create({
   },
   settingText: {
     fontSize: 16,
-    color: '#1E293B',
-    marginLeft: 12,
-    fontWeight: '500',
+    color: COLORS.textPrimary,
+    fontFamily: FONTS.bodyMedium,
+    marginLeft: SPACING.md,
   },
   logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  logoutText: {
-    fontSize: 16,
-    color: '#EF4444',
-    fontWeight: '600',
-    marginLeft: 8,
+    marginBottom: SPACING.xl,
+    borderColor: COLORS.error,
   },
   versionText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: COLORS.textSecondary,
+    fontFamily: FONTS.body,
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: SPACING.xxxl,
   },
 });

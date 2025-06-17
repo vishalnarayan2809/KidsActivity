@@ -27,7 +27,11 @@ export default function SubscriptionScreen() {
     try {
       // For demo purposes, we'll use a mock child ID
       await subscribeToPlan(selectedPlan, ['mock-child-id'], includesTransport);
-      router.replace('/(tabs)');
+      Alert.alert(
+        'Success!',
+        'Your subscription has been activated. Welcome to PlaySafe!',
+        [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
+      );
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to subscribe');
     } finally {
@@ -147,12 +151,21 @@ export default function SubscriptionScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.transportContent}>
-                <View style={styles.transportIcon}>
+                <View style={[
+                  styles.transportIcon,
+                  includesTransport && styles.transportIconSelected
+                ]}>
                   <Truck size={24} color={includesTransport ? COLORS.white : COLORS.primary} strokeWidth={2} />
                 </View>
                 <View style={styles.transportInfo}>
-                  <Text style={styles.transportTitle}>Safe Transport Service</Text>
-                  <Text style={styles.transportDescription}>
+                  <Text style={[
+                    styles.transportTitle,
+                    includesTransport && styles.transportTitleSelected
+                  ]}>Safe Transport Service</Text>
+                  <Text style={[
+                    styles.transportDescription,
+                    includesTransport && styles.transportDescriptionSelected
+                  ]}>
                     Door-to-door pickup and drop with live tracking, OTP verification, and certified drivers
                   </Text>
                 </View>
@@ -351,6 +364,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: SPACING.lg,
   },
+  transportIconSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
   transportInfo: {
     flex: 1,
   },
@@ -360,11 +376,17 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.subheadingBold,
     marginBottom: SPACING.xs,
   },
+  transportTitleSelected: {
+    color: COLORS.white,
+  },
   transportDescription: {
     fontSize: 14,
     color: COLORS.textSecondary,
     fontFamily: FONTS.body,
     lineHeight: 20,
+  },
+  transportDescriptionSelected: {
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   transportToggle: {
     width: 32,

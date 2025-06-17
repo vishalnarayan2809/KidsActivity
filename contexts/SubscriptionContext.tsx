@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Plan, Subscription } from '@/types';
 import { useAuth } from './AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
 
 interface SubscriptionContextType {
   currentSubscription: Subscription | null;
@@ -10,6 +10,8 @@ interface SubscriptionContextType {
   loading: boolean;
   subscribeToPlan: (planId: string, childIds: string[], includesTransport: boolean) => Promise<void>;
   hasActiveSubscription: boolean;
+  cancelSubscription: () => Promise<void>;
+  updateSubscription: (planId: string, includesTransport: boolean) => Promise<void>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -106,7 +108,13 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
       const querySnapshot = await getDocs(subscriptionsQuery);
       if (!querySnapshot.empty) {
         const subscriptionDoc = querySnapshot.docs[0];
-        setCurrentSubscription({ id: subscriptionDoc.id, ...subscriptionDoc.data() } as Subscription);
+        const subscriptionData = subscriptionDoc.data();
+        setCurrentSubscription({ 
+          id: subscriptionDoc.id, 
+          ...subscriptionData,
+          startDate: subscriptionData.startDate.toDate(),
+          endDate: subscriptionData.endDate.toDate(),
+        } as Subscription);
       }
     } catch (error) {
       console.error('Error fetching subscription:', error);
@@ -146,6 +154,41 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     }
   };
 
+  const cancelSubscription = async () => {
+    if (!currentSubscription) throw new Error('No active subscription');
+
+    try {
+      await updateDoc(doc(db, 'subscriptions', currentSubscription.id), {
+        status: 'cancelled',
+        updatedAt: new Date(),
+      });
+      setCurrentSubscription({ ...currentSubscription, status: 'cancelled' });
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      throw error;
+    }
+  };
+
+  const updateSubscription = async (planId: string, includesTransport: boolean) => {
+    if (!currentSubscription) throw new Error('No active subscription');
+
+    try {
+      await updateDoc(doc(db, 'subscriptions', currentSubscription.id), {
+        planId,
+        includesTransport,
+        updatedAt: new Date(),
+      });
+      setCurrentSubscription({ 
+        ...currentSubscription, 
+        planId, 
+        includesTransport 
+      });
+    } catch (error) {
+      console.error('Error updating subscription:', error);
+      throw error;
+    }
+  };
+
   const hasActiveSubscription = currentSubscription?.status === 'active';
 
   const value = {
@@ -154,6 +197,8 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     loading,
     subscribeToPlan,
     hasActiveSubscription,
+    cancelSubscription,
+    updateSubscription,
   };
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
